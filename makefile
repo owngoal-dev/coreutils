@@ -98,6 +98,13 @@ check:
 	@for script in "$(ROOT_DIR)"/scripts/*.sh; do /bin/bash -n "$$script" || exit 1; done
 	@! grep -lE '^[[:space:]]*(mapfile|readarray|declare -A)\b' "$(ROOT_DIR)"/scripts/*.sh || \
 		{ echo "error: bash 4 only syntax; the CI runner has bash 3.2" >&2; exit 65; }
+	@# The files that ship inside the package run as /bin/sh on device, and are
+	@# parsed by the runner's bash 3.2 at package time. Both, here, now.
+	@for shipped in packaging/getent.sh packaging/profile.d/coreutils.sh \
+		packaging/DEBIAN/preinst packaging/DEBIAN/postrm; do \
+		/bin/sh -n "$(ROOT_DIR)/$$shipped" || exit 1; \
+		/bin/bash -n "$(ROOT_DIR)/$$shipped" || exit 1; \
+	done
 	@if command -v shellcheck >/dev/null; then \
 		shellcheck --severity=warning "$(ROOT_DIR)"/scripts/*.sh; \
 	else \

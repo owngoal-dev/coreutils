@@ -68,6 +68,20 @@ lookup_colon_file() {
     return "$status"
 }
 
+# Pull the addresses out of dscacheutil's key: value output.
+#
+# This lives in a function rather than inline in the command substitution that
+# calls it because bash 3.2 -- which is /bin/sh and /bin/bash on macOS, and so
+# the parser the CI runner checks this with -- mis-parses a `case` inside
+# `$(...)`: it reads a pattern's closing paren as the end of the substitution.
+dscacheutil_addresses() {
+    while IFS= read -r line || [ -n "$line" ]; do
+        case $line in
+        ipv4_address:* | ipv6_address:*) printf '%s\n' "${line#*: }" ;;
+        esac
+    done
+}
+
 # Print the /etc/hosts line that lists the key as one of its names.
 lookup_hosts_file() {
     key=$1
@@ -137,14 +151,7 @@ hosts | ahosts | ahostsv4 | ahostsv6)
     for key in "$@"; do
         resolved=""
         if command -v dscacheutil >/dev/null 2>&1; then
-            resolved=$(
-                dscacheutil -q host -a name "$key" 2>/dev/null |
-                    while IFS= read -r line || [ -n "$line" ]; do
-                        case $line in
-                        ipv4_address:* | ipv6_address:*) printf '%s\n' "${line#*: }" ;;
-                        esac
-                    done
-            )
+            resolved=$(dscacheutil -q host -a name "$key" 2>/dev/null | dscacheutil_addresses)
         fi
         if [ -n "$resolved" ]; then
             for address in $resolved; do
