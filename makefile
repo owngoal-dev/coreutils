@@ -115,17 +115,21 @@ check:
 	done
 	@echo "==> packaging inputs"
 	@for input in packaging/DEBIAN/control packaging/coreutils.entitlements \
-		packaging/uutils.sh packaging/release-notes.md; do \
+		packaging/profile.d/coreutils.sh packaging/getent.sh \
+		packaging/DEBIAN/preinst packaging/DEBIAN/postrm \
+		patches/dependencies/xattr-0001-support-ios.patch packaging/release-notes.md; do \
 		test -f "$(ROOT_DIR)/$$input" || { echo "error: missing $$input" >&2; exit 66; }; \
 	done
 	@plutil -lint "$(ROOT_DIR)/packaging/coreutils.entitlements"
-	@echo "==> control declares no coreutils takeover"
-	@for field in Provides Conflicts Replaces; do \
-		if grep -q "^$$field:" "$(ROOT_DIR)/packaging/DEBIAN/control"; then \
-			echo "error: control declares $$field; this package coexists with GNU coreutils" >&2; \
-			exit 65; \
-		fi; \
-	done
+	@echo "==> control declares the coreutils takeover"
+	@grep -qE "^Replaces:( |.*, )coreutils(,|$$)" "$(ROOT_DIR)/packaging/DEBIAN/control" || \
+		{ echo "error: control must declare Replaces: coreutils" >&2; exit 65; }
+	@grep -qE "^Conflicts:( |.*, )coreutils(,|$$)" "$(ROOT_DIR)/packaging/DEBIAN/control" || \
+		{ echo "error: control must declare Conflicts: coreutils" >&2; exit 65; }
+	@if grep -qE "^Provides:( |.*, )coreutils( \(|,|$$)" "$(ROOT_DIR)/packaging/DEBIAN/control"; then \
+		echo "error: Provides: coreutils makes apt obsolete the GNU package and remove it" >&2; \
+		exit 65; \
+	fi
 	@"$(ROOT_DIR)/scripts/release-notes.sh" "v$(PACKAGE_VERSION)" >/dev/null
 	@test -L "$(ROOT_DIR)/CLAUDE.md" && [[ "$$(readlink "$(ROOT_DIR)/CLAUDE.md")" == AGENTS.md ]] || \
 		{ echo "error: CLAUDE.md must be a symlink to AGENTS.md" >&2; exit 65; }

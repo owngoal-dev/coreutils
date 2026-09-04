@@ -37,6 +37,8 @@ export CARGO_HOME="$scratch_dir/cargo-home"
 export CARGO_TARGET_DIR="$host_dir/target"
 unset SDKROOT IPHONEOS_DEPLOYMENT_TARGET
 
+xattr_source="$("$repository_root/scripts/prepare-xattr.sh" "$cargo_root" "$CARGO_HOME" "$scratch_dir/dependencies")"
+
 echo "building $CARGO_BIN for the host to exercise the Apple spawn path" >&2
 (
     cd "$cargo_root"
@@ -45,7 +47,8 @@ echo "building $CARGO_BIN for the host to exercise the Apple spawn path" >&2
         --no-default-features \
         --features "$CARGO_FEATURES" \
         --package "$CARGO_PACKAGE" \
-        --bin "$CARGO_BIN"
+        --bin "$CARGO_BIN" \
+        --config "patch.crates-io.xattr.path='$xattr_source'"
 ) >&2
 
 host_binary="$CARGO_TARGET_DIR/release/$CARGO_BIN"

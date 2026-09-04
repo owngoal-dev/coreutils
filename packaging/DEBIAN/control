@@ -9,23 +9,37 @@ Description: GNU coreutils rewritten in Rust, for jailbroken iOS
  architecture field says which layout this package is, not which CPU it runs
  on. Upstream is @UPSTREAM@.
  .
- This package does not replace the GNU coreutils your bootstrap ships: apt,
- dpkg and Sileo depend on that one, and their maintainer scripts run the very
- tools that would be swapped out. Everything here is installed side by side in
- @UTILS_PATH@ instead, and nothing is added to PATH.
+ This takes over the GNU coreutils in usr/bin: one multi-call binary with a
+ symlink per utility beside it, unpacked over the files the GNU package owns.
  .
- To use it, put that directory first in PATH -- $UUTILS_BIN is exported for you
- by /etc/profile.d/uutils.sh, so a shell can opt in with
- `export PATH="$UUTILS_BIN:$PATH"` and opt back out by starting a new one. The
- whole set is also reachable without touching PATH at all: `coreutils ls -l`.
+ It conflicts with coreutils deliberately, so no package manager installs it
+ by accident -- resolving from a repository would mean removing a package that
+ apt, dpkg and Sileo themselves depend on, and they will refuse. Installing it
+ is an explicit act:
+ .
+ `sudo dpkg -i --force-conflicts wiki.qaq.uutils_*.deb`
+ .
+ That unpacks over the GNU files and leaves the GNU package registered, so
+ nothing is deleted and `rm` never leaves PATH. Do NOT feed the .deb to
+ `apt install` directly: apt treats a local file as an explicit request and
+ will remove coreutils first, which takes `rm` away mid-transaction and wedges
+ dpkg with no way back except SSH and the stash this package leaves in
+ usr/libexec/uutils/gnu-backup.
  .
  Every process these utilities start goes through posix_spawn(); there is no
  fork() in the binary, no setuid/setgid, and nothing escalates privilege:
- children inherit what the shell had. stdbuf, chroot, chcon and runcon are not
- included.
+ children inherit what the shell had.
+ .
+ Not included, because they cannot work here: stdbuf (its helper library would
+ have to be injected into a platform-signed process), chroot (needs root and
+ the credential syscalls this binary denies), chcon and runcon (SELinux).
+ getent is not a uutils utility; a small stand-in ships in its place.
 Maintainer: OwnGoal Studio <not-gonna-reply@owngoal.dev>
 Author: uutils developers <https://github.com/uutils/coreutils>
 Section: Utilities
-Priority: optional
+Priority: standard
 Depends: firmware (>= @MIN_IOS@)
+Provides: md5sum, sha1sum, dirname, kill, mktemp
+Replaces: coreutils, system-cmds, shell-cmds (<< 207.40.1), text-cmds (<< 1:0), file-cmds (<< 272.250.1-1)
+Conflicts: coreutils, shell-cmds (<< 207.40.1), text-cmds (<< 1:0), file-cmds (<< 272.250.1-1), system-cmds (<< 854.40.2-3)
 Installed-Size: @INSTALLED_SIZE@

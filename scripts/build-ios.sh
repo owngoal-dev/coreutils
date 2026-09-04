@@ -26,7 +26,6 @@ source "$repository_root/configuration/upstream.env"
 : "${CARGO_BIN:?}"
 : "${CARGO_FEATURES:?}"
 : "${PROGRAM:?}"
-: "${UTILS_DIR:?}"
 : "${MIN_IOS:?}"
 : "${ARCH:?}"
 : "${RUST_TOOLCHAIN:?}"
@@ -124,6 +123,8 @@ export CARGO_TARGET_DIR="$scratch_dir/target"
 # redox, aarch64 linux and msvc, so exporting RUSTFLAGS drops nothing here.
 export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$src_dir=/src --remap-path-prefix=$scratch_dir=/build"
 
+xattr_source="$("$repository_root/scripts/prepare-xattr.sh" "$cargo_root" "$cargo_home" "$scratch_dir/dependencies")"
+
 # Host rustc would happily emit a darwin Mach-O if the target flag is dropped.
 # The vtool check below is the backstop; this is the front.
 (
@@ -134,7 +135,8 @@ export RUSTFLAGS="${RUSTFLAGS:-} --remap-path-prefix=$src_dir=/src --remap-path-
         --no-default-features \
         --features "$CARGO_FEATURES" \
         --package "$CARGO_PACKAGE" \
-        --bin "$CARGO_BIN"
+        --bin "$CARGO_BIN" \
+        --config "patch.crates-io.xattr.path='$xattr_source'"
 ) >&2
 
 executable="$CARGO_TARGET_DIR/$rust_target/release/$CARGO_BIN"
@@ -234,25 +236,45 @@ if printf '%s\n' "${utilities[@]}" | grep -qx test; then
     utilities+=('[')
 fi
 
+# Drop the names that belong to other packages on the bootstrap. They stay in
+# the binary and stay reachable as `coreutils <util>`; they just get no symlink.
+if [[ -n "${EXCLUDE_UTILITIES:-}" ]]; then
+    read -r -a excluded <<<"$EXCLUDE_UTILITIES"
+    for name in "${excluded[@]}"; do
+        printf '%s\n' "${utilities[@]}" | grep -qx -- "$name" || {
+            echo "error: EXCLUDE_UTILITIES names '$name', which this build does not contain" >&2
+            exit 65
+        }
+    done
+    kept=()
+    for utility in "${utilities[@]}"; do
+        skip=false
+        for name in "${excluded[@]}"; do
+            [[ "$utility" == "$name" ]] && skip=true && break
+        done
+        $skip || kept+=("$utility")
+    done
+    utilities=("${kept[@]}")
+    echo "    not symlinked (owned by other packages): ${excluded[*]}" >&2
+fi
+
 payload="$scratch_dir/payload"
 rm -rf -- "$payload"
-mkdir -p "$payload/usr/bin" "$payload/$UTILS_DIR"
+mkdir -p "$payload/usr/bin"
 /usr/bin/ditto "$executable" "$payload/usr/bin/$PROGRAM"
 
-# usr/libexec/uutils/bin/<util> -> ../../../bin/<program>. The multi-call binary
-# dispatches on argv[0] alone on Apple targets (src/common/validation.rs), so a
-# symlink is enough; nothing reads current_exe().
-depth="$(awk -F/ '{print NF}' <<<"$UTILS_DIR")"
-relative_binary="$(printf '../%.0s' $(seq 1 "$depth"))usr/bin/$PROGRAM"
+# usr/bin/<util> -> coreutils, right beside it. The multi-call binary dispatches
+# on argv[0] alone on Apple targets (src/common/validation.rs), so a symlink is
+# enough; nothing reads current_exe().
 for utility in "${utilities[@]}"; do
-    ln -s "$relative_binary" "$payload/$UTILS_DIR/$utility"
+    ln -s "$PROGRAM" "$payload/usr/bin/$utility"
 done
 
 {
     echo "built $PROGRAM: $architectures, iOS $MIN_IOS minimum, $(
         du -h "$payload/usr/bin/$PROGRAM" | cut -f1 | tr -d ' '
     )"
-    echo "utilities (${#utilities[@]}), symlinked into $UTILS_DIR:"
+    echo "utilities (${#utilities[@]}), symlinked beside it in usr/bin:"
     printf '%s\n' "${utilities[@]}" | sort | paste -sd' ' - | fold -sw 72 | sed 's/^/  /'
     echo "system dependencies:"
     otool -L "$payload/usr/bin/$PROGRAM" | tail -n +2 | awk '{print "  " $1}'

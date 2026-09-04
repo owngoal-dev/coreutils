@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Stash the GNU coreutils binaries this package is about to take over.
+#
+# dpkg needs rm in PATH to finish a removal, and rm is one of the files this
+# package owns once it is installed. So removing it later would delete rm and
+# then fail -- unless something puts the GNU binaries back the moment the files
+# go away. postrm does that, from the copy made here, while the originals are
+# still in place.
+#
+# Nothing but shell built-ins and the tools that exist right now: this runs
+# before the unpack, so usr/bin is still the GNU set.
+
+set -e
+
+PREFIX=@PREFIX@
+STASH=$PREFIX/usr/libexec/uutils/gnu-backup
+
+case $1 in
+install | upgrade)
+    mkdir -p "$STASH"
+    dpkg-query -L coreutils 2>/dev/null | while IFS= read -r path; do
+        case $path in
+        "$PREFIX"/usr/bin/*) ;;
+        *) continue ;;
+        esac
+        [ -f "$path" ] || continue
+        name=${path##*/}
+        [ -e "$STASH/$name" ] && continue
+        cp -p "$path" "$STASH/$name"
+    done
+    # cp itself has to be there for postrm to use, or none of this works.
+    if [ ! -x "$STASH/cp" ]; then
+        echo "warning: could not stash a working cp; removing this package later" >&2
+        echo "         will need $PREFIX/usr/bin restored by hand" >&2
+    fi
+    ;;
+esac
+
+exit 0

@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Put the GNU coreutils binaries back the instant this package's files go away.
+#
+# This is what makes the package removable at all. dpkg requires rm in PATH,
+# and rm is one of the files it just deleted; without this the removal leaves a
+# device with no coreutils and no way for apt to install the fix. preinst
+# stashed the originals before the takeover, and they are used here by absolute
+# path so nothing depends on what is currently in usr/bin.
+#
+# The stash lives outside this package's file list on purpose, so dpkg does not
+# delete it before we get here. purge clears it once the restore is done.
+
+PREFIX=@PREFIX@
+STASH=$PREFIX/usr/libexec/uutils/gnu-backup
+
+restore() {
+    [ -d "$STASH" ] || return 0
+    [ -x "$STASH/cp" ] || return 0
+    for stashed in "$STASH"/*; do
+        [ -f "$stashed" ] || continue
+        name=${stashed##*/}
+        # Only fill holes. An upgrade or a reinstalled coreutils has already put
+        # something there, and it is not this script's business to overwrite it.
+        [ -e "$PREFIX/usr/bin/$name" ] && continue
+        "$STASH/cp" -p "$stashed" "$PREFIX/usr/bin/$name" || true
+    done
+}
+
+case $1 in
+remove | purge | disappear)
+    restore
+    ;;
+esac
+
+if [ "$1" = purge ] && [ -d "$STASH" ] && [ -x "$PREFIX/usr/bin/rm" ]; then
+    "$PREFIX/usr/bin/rm" -rf "$STASH" || true
+    rmdir "$PREFIX/usr/libexec/uutils" 2>/dev/null || true
+fi
+
+exit 0

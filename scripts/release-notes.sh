@@ -18,7 +18,6 @@ source "$repository_root/configuration/upstream.env"
 
 : "${UPSTREAM_REF:?}"
 : "${MIN_IOS:?}"
-: "${UTILS_DIR:?}"
 
 [[ -f "$template" ]] || { echo "error: missing $template" >&2; exit 66; }
 
@@ -34,8 +33,7 @@ rendered="$(
         -e "s|@UPSTREAM_REF@|$UPSTREAM_REF|g" \
         -e "s|@UPSTREAM_SHORT@|${UPSTREAM_REF:0:7}|g" \
         -e "s|@MIN_IOS_MAJOR@|${MIN_IOS%%.*}|g" \
-        -e "s|@UTILS_DIR@|$UTILS_DIR|g" \
-        "$template"
+            "$template"
 )"
 
 if grep -q '@[A-Z_]*@' <<<"$rendered"; then

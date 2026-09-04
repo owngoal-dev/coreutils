@@ -1,0 +1,47 @@
+diff --git a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -46,7 +46,7 @@ path = "tests/main.rs"
+ [dev-dependencies.tempfile]
+ version = "3"
+ 
+-[target.'cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "hurd"))'.dependencies.rustix]
++[target.'cfg(any(target_os = "android", target_os = "linux", target_os = "macos", target_os = "ios", target_os = "hurd"))'.dependencies.rustix]
+ version = "1.0.0"
+ features = [
+     "fs",
+diff --git a/src/sys/linux_macos.rs b/src/sys/linux_macos.rs
+--- a/src/sys/linux_macos.rs
++++ b/src/sys/linux_macos.rs
+@@ -6,10 +6,12 @@ use std::path::Path;
+ 
+ use rustix::fs as rfs;
+ 
+-#[cfg(not(target_os = "macos"))]
++// Darwin spells "no such attribute" ENOATTR; Linux reuses ENODATA. iOS is
++// Darwin, so key this on the vendor rather than on macos alone.
++#[cfg(not(target_vendor = "apple"))]
+ pub const ENOATTR: i32 = rustix::io::Errno::NODATA.raw_os_error();
+ 
+-#[cfg(target_os = "macos")]
++#[cfg(target_vendor = "apple")]
+ pub const ENOATTR: i32 = rustix::io::Errno::NOATTR.raw_os_error();
+ 
+ pub const ERANGE: i32 = rustix::io::Errno::RANGE.raw_os_error();
+diff --git a/src/sys/mod.rs b/src/sys/mod.rs
+--- a/src/sys/mod.rs
++++ b/src/sys/mod.rs
+@@ -28,7 +28,12 @@ macro_rules! platforms {
+     }
+ }
+ 
++// iOS shares Darwin's extended-attribute interface with macOS: the same
++// getxattr/setxattr/listxattr/removexattr with the same XATTR_NOFOLLOW and
++// position arguments, all exported from libSystem. Without this line the crate
++// falls back to its `unsupported` module and every call returns an error, which
++// surfaces as `cp: setting attributes for '...': unsupported platform`.
+ platforms! {
+-    "android"; "linux"; "macos"; "hurd" => linux_macos,
++    "android"; "linux"; "macos"; "ios"; "hurd" => linux_macos,
+     "freebsd"; "netbsd" => bsd
+ }

@@ -1,4 +1,4 @@
-[uutils coreutils](https://github.com/uutils/coreutils) — the GNU core utilities reimplemented in Rust — built for jailbroken iOS.
+[uutils coreutils](https://github.com/uutils/coreutils) — the GNU core utilities reimplemented in Rust — built for jailbroken iOS, **replacing** the GNU coreutils your bootstrap ships.
 
 ## Which one do I download?
 
@@ -13,26 +13,38 @@ Not sure? Ask the device: `dpkg --print-architecture`.
 
 Requires **iOS @MIN_IOS_MAJOR@ or later**. Or add the [OwnGoal Studio repository](https://github.com/owngoal-dev/OwnGoalPackages) and let your package manager pick.
 
-## This does not replace your coreutils
+## This takes over coreutils — on purpose, and only if you ask
 
-`apt`, `dpkg` and Sileo all depend on the GNU `coreutils` your bootstrap ships, and their maintainer scripts run the very tools that a replacement would swap out. So this package declares no `Provides`, `Conflicts` or `Replaces`, installs nothing into `usr/bin` except the multi-call binary itself, and adds nothing to `PATH`.
+Installing it unpacks over the GNU coreutils in `usr/bin`: one multi-call binary with a symlink per utility beside it. The GNU `coreutils` package stays registered and keeps whatever this one does not ship, so `apt`, `dpkg`, Sileo and `darwintools` — all of which depend on it — are undisturbed.
 
-Everything lands in `@UTILS_DIR@` under your bootstrap prefix instead. Two ways to use it:
+The package declares `Conflicts: coreutils` so that **no package manager installs it by accident**. Resolving it from a repository would mean removing something apt and dpkg themselves need, and they will refuse. Installing it is a deliberate act:
 
 ```sh
-export PATH="$UUTILS_BIN:$PATH"   # this shell only; $UUTILS_BIN comes from /etc/profile.d/uutils.sh
-coreutils ls -l                   # or reach any utility without touching PATH
+sudo dpkg -i --force-conflicts @PACKAGE_ID@_@VERSION@_iphoneos-arm64.deb
 ```
 
-Put that `export` in your shell's rc file to make it stick, and delete the line to go back.
+> **Do not run `apt install` on this .deb.** apt treats a local file as an explicit request, honours the conflict, and removes coreutils *first* — which deletes `rm`, the one program dpkg insists on finding in `PATH`. The transaction then dies with your device holding no coreutils at all. If that happens, the GNU binaries are stashed in `usr/libexec/uutils/gnu-backup`; copy them back to `usr/bin` over SSH.
+
+**Removing it** works normally — verified on device:
+
+```sh
+sudo dpkg --remove @PACKAGE_ID@                            # postrm puts the GNU binaries back
+sudo apt-get install --reinstall coreutils system-cmds     # and dpkg's bookkeeping with them
+```
+
+The package's `preinst` stashes the GNU binaries before the takeover and its `postrm` copies them back the moment dpkg deletes this package's files, so `rm` is in place before anything needs it.
+
+While it is installed, apt refuses to do anything else — that is the `Conflicts` doing its job, and it clears the moment you remove this package. Use `dpkg -i` / `dpkg --remove` in the meantime.
+
+## No fork(), no privilege escalation
+
+Every child goes through `posix_spawn()`; `fork()`, `setuid()`, `setgid()` and `setgroups()` are defined to fail rather than imported, and the build refuses a binary that carries any of them. Children inherit the credentials the shell already had. Lowering still works — `nice` reduces its own priority, `timeout` signals the child's process group.
 
 ## About this build
 
-Upstream [`uutils/coreutils@@UPSTREAM_SHORT@`](https://github.com/uutils/coreutils/commit/@UPSTREAM_REF@), built from the `feat_os_unix_musl` utility set, plus three patches that make it safe on iOS: `timeout` spawns without a `pre_exec` closure so `std` stays on `posix_spawn()`; `fork()`, `setuid()`, `setgid()` and `setgroups()` are defined to fail rather than imported; and `chroot` is dropped. Forking a process with the Objective-C runtime loaded is not safe on iOS, and the build refuses a binary that imports any of those symbols. See [`patches/`](https://github.com/owngoal-dev/coreutils/tree/@TAG@/patches).
+Upstream [`uutils/coreutils@@UPSTREAM_SHORT@`](https://github.com/uutils/coreutils/commit/@UPSTREAM_REF@), built from the `feat_os_unix_musl` utility set, plus the patches in [`patches/`](https://github.com/owngoal-dev/coreutils/tree/@TAG@/patches): `timeout` spawns without a `pre_exec` closure; `fork()` and the credential syscalls are denied; `chroot` is dropped; and the `xattr` crate is taught that iOS has Darwin's extended attributes, without which `cp -a` fails with *unsupported platform*.
 
-Nothing escalates privilege either: children inherit the credentials the shell already had, and the build refuses a binary importing `setuid`, `setgid` or `setgroups`.
-
-Not included: `chroot` (the only utility calling those), `stdbuf` (needs a cdylib link that `ld64` rejects, and `DYLD_INSERT_LIBRARIES` does not apply to a platform-signed process), `chcon` and `runcon` (SELinux). `getent` is not part of uutils; the GNU package on your bootstrap keeps providing it.
+Not included: `chroot` (needs root and the denied syscalls), `stdbuf` (its helper library would have to be injected into a platform-signed process), `chcon` and `runcon` (SELinux). `getent` is not a uutils utility — the GNU package carried Procursus' build of it, so a small POSIX-sh stand-in ships in its place for the `passwd`, `group`, `hosts`, `services` and `protocols` lookups the shells do.
 
 Verify your download against `SHA256SUMS`.
 
