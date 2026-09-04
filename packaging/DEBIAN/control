@@ -1,0 +1,31 @@
+Package: @PACKAGE_ID@
+Name: uutils coreutils
+Version: @VERSION@
+Architecture: @ARCHITECTURE@
+Description: GNU coreutils rewritten in Rust, for jailbroken iOS
+ The uutils reimplementation of the GNU core utilities -- ls, cp, mv, cat,
+ sort, dd, du and about a hundred more -- cross-compiled for iOS and packaged
+ for both roothide and rootless bootstraps from one arm64 build. The
+ architecture field says which layout this package is, not which CPU it runs
+ on. Upstream is @UPSTREAM@.
+ .
+ This package does not replace the GNU coreutils your bootstrap ships: apt,
+ dpkg and Sileo depend on that one, and their maintainer scripts run the very
+ tools that would be swapped out. Everything here is installed side by side in
+ @UTILS_PATH@ instead, and nothing is added to PATH.
+ .
+ To use it, put that directory first in PATH -- $UUTILS_BIN is exported for you
+ by /etc/profile.d/uutils.sh, so a shell can opt in with
+ `export PATH="$UUTILS_BIN:$PATH"` and opt back out by starting a new one. The
+ whole set is also reachable without touching PATH at all: `coreutils ls -l`.
+ .
+ Every process these utilities start goes through posix_spawn(); there is no
+ fork() in the binary, no setuid/setgid, and nothing escalates privilege:
+ children inherit what the shell had. stdbuf, chroot, chcon and runcon are not
+ included.
+Maintainer: OwnGoal Studio <not-gonna-reply@owngoal.dev>
+Author: uutils developers <https://github.com/uutils/coreutils>
+Section: Utilities
+Priority: optional
+Depends: firmware (>= @MIN_IOS@)
+Installed-Size: @INSTALLED_SIZE@

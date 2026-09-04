@@ -1,0 +1,17 @@
+diff --git a/Cargo.toml b/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -335,7 +335,12 @@ feat_require_unix_core = [
+   "chgrp",
+   "chmod",
+   "chown",
+-  "chroot",
++  # chroot is dropped on this port. It is the only utility that calls
++  # setgroups(), setgid() and setuid(), which is privilege escalation from a
++  # process that starts unprivileged -- and on iOS it also needs root and a
++  # root filesystem view that the bootstrap does not have. Children are spawned
++  # with posix_spawn() and inherit what this process already has; nothing here
++  # escalates. Dropping (nice lowering its own priority) is fine.
+   "groups",
+   "id",
+   "install",

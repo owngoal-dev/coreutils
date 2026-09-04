@@ -1,0 +1,42 @@
+diff --git a/src/uu/timeout/src/platform/unix.rs b/src/uu/timeout/src/platform/unix.rs
+--- a/src/uu/timeout/src/platform/unix.rs
++++ b/src/uu/timeout/src/platform/unix.rs
+@@ -6,6 +6,7 @@
+ // spell-checker:ignore (ToDO) sigstr setpgid sigchld sigwait getpid TTIN TTOU
+ 
+ use std::io;
++#[cfg(not(target_vendor = "apple"))]
+ use std::os::unix::process::CommandExt;
+ use std::os::unix::process::ExitStatusExt;
+ use std::process::Child;
+@@ -53,6 +54,19 @@ pub(crate) fn prepare(
+         let _ = setpgid(Pid::from_raw(0), Pid::from_raw(0));
+     }
+ 
++    // Apple targets spawn without a pre_exec closure. `std` only takes the
++    // `posix_spawn()` path while the `Command` carries no closure; attaching one
++    // makes it fall back to `fork()` + `exec()`. This binary has the
++    // Objective-C runtime and Foundation loaded, and forking such a process is
++    // not safe on iOS, so the child setup below is compiled out there.
++    //
++    // Only inherited state is lost, and `posix_spawn()` covers most of it:
++    // it clears the child's signal mask (what `thread_unblock()` is for) and
++    // resets SIGPIPE to the default. What differs from GNU is the case where
++    // timeout's *own* parent already had SIGPIPE ignored, stdin closed, or
++    // SIGTTIN/SIGTTOU ignored -- those are passed through as inherited instead
++    // of being fixed up in the child.
++    #[cfg(not(target_vendor = "apple"))]
+     {
+         #[cfg(target_os = "linux")]
+         let death_sig = signal_from_raw(signal as i32);
+@@ -81,6 +95,10 @@ pub(crate) fn prepare(
+             });
+         }
+     }
++    #[cfg(target_vendor = "apple")]
++    {
++        let _ = (&cmd_builder, signal);
++    }
+ 
+     install_sigchld();
+     timeout_signal_set().thread_block()?;

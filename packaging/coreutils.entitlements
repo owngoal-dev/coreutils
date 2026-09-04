@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  These are file and process utilities: they are launched from a shell, read
+  and write files all over the bootstrap and the user's home, stat and chmod
+  them, and start other programs. Three entitlements make that work on a
+  jailbroken device:
+
+  platform-application
+      Marks the binary as a platform binary. An ad-hoc signed executable
+      without it is denied the file access and process control below.
+
+  com.apple.private.security.no-sandbox
+      Everything these tools touch is outside any container.
+
+  com.apple.private.security.container-required = false
+      Keeps them out of a data container, so HOME resolves to the real home of
+      whoever ran them -- `ls ~`, `cp` into `~/Documents` and `touch ~/.profile`
+      have to mean the same paths the shell means. Absence is not equivalent:
+      the switch has to be explicitly false.
+-->
+<plist version="1.0">
+<dict>
+	<key>platform-application</key>
+	<true/>
+	<key>com.apple.private.security.no-sandbox</key>
+	<true/>
+	<key>com.apple.private.security.container-required</key>
+	<false/>
+</dict>
+</plist>

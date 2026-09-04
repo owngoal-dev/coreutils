@@ -1,0 +1,5 @@
+{
+  "name": "uutils coreutils",
+  "description": "GNU coreutils rewritten in Rust, for jailbroken iOS",
+  "homepage": "https://github.com/owngoal-dev/coreutils"
+}
