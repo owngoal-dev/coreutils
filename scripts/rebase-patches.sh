@@ -95,7 +95,11 @@ fi
 git -C "$work_dir" add -A
 for patch_file in "${patches[@]}"; do
     name="$(basename "$patch_file")"
-    mapfile -t files < <(sed -n 's|^diff --git a/\(.*\) b/.*|\1|p' "$patch_file")
+    # The macOS system bash is 3.2 and has no mapfile; CI runs on that bash.
+    files=()
+    while IFS= read -r changed_file; do
+        [[ -n "$changed_file" ]] && files+=("$changed_file")
+    done < <(sed -n 's|^diff --git a/\(.*\) b/.*|\1|p' "$patch_file")
     git -C "$work_dir" diff --cached -- "${files[@]}" | grep -v '^index ' >"$patch_file" || true
     if [[ ! -s "$patch_file" ]]; then
         echo "error: $name came out empty; its changes are gone from build/rebase" >&2

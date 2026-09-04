@@ -216,7 +216,12 @@ weak_symbols="$(nm -m "$executable" 2>/dev/null | grep 'weak external' | awk '{p
 
 # Which utilities the build actually contains. Same derivation upstream's
 # GNUmakefile uses, so it follows the feature set instead of a hardcoded list.
-mapfile -t utilities < <(
+# A read loop rather than mapfile: the macOS system bash is 3.2 and has no
+# mapfile, and that is the bash the CI runner gets.
+utilities=()
+while IFS= read -r utility_name; do
+    [[ -n "$utility_name" ]] && utilities+=("$utility_name")
+done < <(
     cd "$cargo_root" &&
         cargo +"$RUST_TOOLCHAIN" tree \
             --depth 1 \

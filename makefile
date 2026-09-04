@@ -94,6 +94,10 @@ set-version:
 check:
 	@echo "==> shell syntax"
 	@for script in "$(ROOT_DIR)"/scripts/*.sh; do bash -n "$$script" || exit 1; done
+	@# CI runs on the macOS system bash, which is 3.2: no mapfile, no ${x^^}.
+	@for script in "$(ROOT_DIR)"/scripts/*.sh; do /bin/bash -n "$$script" || exit 1; done
+	@! grep -lE '^[[:space:]]*(mapfile|readarray|declare -A)\b' "$(ROOT_DIR)"/scripts/*.sh || \
+		{ echo "error: bash 4 only syntax; the CI runner has bash 3.2" >&2; exit 65; }
 	@if command -v shellcheck >/dev/null; then \
 		shellcheck --severity=warning "$(ROOT_DIR)"/scripts/*.sh; \
 	else \
