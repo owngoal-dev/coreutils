@@ -1,0 +1,29 @@
+diff --git a/src/uu/nohup/src/nohup.rs b/src/uu/nohup/src/nohup.rs
+--- a/src/uu/nohup/src/nohup.rs
++++ b/src/uu/nohup/src/nohup.rs
+@@ -80,7 +80,15 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
+ 
+     unsafe { libc::signal(libc::SIGHUP, libc::SIG_IGN) };
+ 
+-    #[cfg(target_vendor = "apple")]
++    // macOS detaches from its launchd console session here, the way BSD nohup
++    // does. iOS has no such session to leave: `_vprocmgr_detach_from_console`
++    // always reports failure, and honouring that turns every `nohup` on device
++    // into "nohup: Cannot detach from console" without running the command at
++    // all. The part that matters -- SIGHUP ignored above, and the output
++    // redirection `replace_fds` already did -- does not depend on it, and is
++    // exactly what GNU nohup does on the platforms with no console to detach
++    // from.
++    #[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
+     if unsafe { !_vprocmgr_detach_from_console(0).is_null() } {
+         return Err(NohupError::CannotDetach.into());
+     }
+@@ -176,7 +184,7 @@ fn try_open_nohup_file(path: &str) -> std::io::Result<File> {
+     Ok(file)
+ }
+ 
+-#[cfg(target_vendor = "apple")]
++#[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
+ unsafe extern "C" {
+     fn _vprocmgr_detach_from_console(flags: u32) -> *const core::ffi::c_int;
+ }

@@ -242,6 +242,14 @@ on_device "timeout 1 sleep 5; test \$? -eq 124" || {
     echo "error: timeout did not report 124 on expiry" >&2
     exit 65
 }
+# nohup went untested through several rounds and was broken the whole time:
+# upstream detaches from the launchd console on Apple targets, which always
+# fails on iOS, so every nohup died before running anything. patches/0004.
+nohup_output="$(on_device "cd /tmp && rm -f uutils-nohup && nohup echo spawned >uutils-nohup 2>&1; cat uutils-nohup; rm -f uutils-nohup")"
+[[ "$nohup_output" == "spawned" ]] || {
+    echo "error: nohup did not run its command; it printed '$nohup_output'" >&2
+    exit 65
+}
 
 echo "==> the getent stand-in answers what the shells ask it"
 getent_passwd="$(on_device "getent passwd $device_user")"
