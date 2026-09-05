@@ -224,3 +224,13 @@ make install       # apt-swap it onto a device and smoke-test, apt included
 Release first, then add the manifest entry: the APT build fails if an entry has
 no release. Tag `vX.Y.Z`, non-draft, non-prerelease; assets ending in
 `iphoneos-arm64.deb` / `iphoneos-arm64e.deb` plus `SHA256SUMS` of bare names.
+
+## RootHide signing and launcher checks
+
+RootHide's official Developer README requires both
+`com.apple.private.security.storage.AppBundles` and
+`com.apple.private.security.storage.AppDataContainers`, in addition to the
+platform and no-sandbox entitlements. Keep these in the executable signature
+and verify the extracted signature after packaging; a correct package layout
+alone does not establish access to RootHide's app-container installation path.
+Source: https://github.com/roothide/Developer/blob/main/README.md

@@ -91,7 +91,12 @@ mkdir -p "$debian" "$installed_root" "$(dirname "$installed_profile")"
 # getent is not a uutils utility, but the GNU package this replaces carried
 # Procursus' build of it and the shells look it up. Ship a stand-in rather than
 # quietly removing it.
-sed -e "s|@PACKAGE_ID@|$package_id|g" "$getent_template" >"$installed_getent"
+sed -e "1s|^#!/bin/sh$|#!$install_prefix/bin/sh|" \
+    -e "s|@PACKAGE_ID@|$package_id|g" "$getent_template" >"$installed_getent"
+head -n1 "$installed_getent" | grep -qxF "#!$install_prefix/bin/sh" || {
+    echo "error: getent interpreter does not match package layout" >&2
+    exit 65
+}
 if grep -q '@[A-Z_]*@' "$installed_getent"; then
     echo "error: getent stand-in still holds an unsubstituted placeholder" >&2
     exit 65
@@ -139,6 +144,8 @@ require_true() {
 ldid -e "$installed_binary" >"$signed_entitlements"
 require_true platform-application
 require_true com.apple.private.security.no-sandbox
+require_true com.apple.private.security.storage.AppBundles
+require_true com.apple.private.security.storage.AppDataContainers
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :com.apple.private.security.container-required' \
     "$signed_entitlements" 2>/dev/null || true)" == false ]] || {
     echo "error: $installed_binary needs com.apple.private.security.container-required = false" >&2

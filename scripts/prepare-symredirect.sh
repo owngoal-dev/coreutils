@@ -28,9 +28,23 @@ git -C "$work_dir" remote set-url origin "$SYMREDIRECT_REPO"
 
 if [[ "$(git -C "$work_dir" rev-parse HEAD 2>/dev/null || true)" != "$SYMREDIRECT_REF" ]]; then
     echo "fetching symredirect at $SYMREDIRECT_REF" >&2
-    git -C "$work_dir" fetch --quiet --depth 1 --force origin "$SYMREDIRECT_REF"
+    shared_source="${ROOTHIDE_SOURCE:-$repository_root/../libroothide}"
+    if git -C "$shared_source" cat-file -e "$SYMREDIRECT_REF^{commit}" 2>/dev/null; then
+        git -C "$work_dir" fetch --quiet --depth 1 --force "$shared_source" "$SYMREDIRECT_REF"
+    else
+        git -C "$work_dir" fetch --quiet --depth 1 --force origin "$SYMREDIRECT_REF"
+    fi
     git -C "$work_dir" checkout --quiet --detach FETCH_HEAD
 fi
+
+[[ "$(git -C "$work_dir" rev-parse HEAD)" == "$SYMREDIRECT_REF" ]] || {
+    echo "error: symredirect checkout does not match pinned commit" >&2
+    exit 65
+}
+git -C "$work_dir" diff --quiet HEAD -- symredirect.cpp vroot.h || {
+    echo "error: symredirect source differs from pinned commit" >&2
+    exit 65
+}
 
 clang++ -std=c++11 -O2 -w -o "$work_dir/symredirect-host" "$work_dir/symredirect.cpp"
 "$work_dir/symredirect-host" >/dev/null
