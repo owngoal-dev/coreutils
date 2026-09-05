@@ -12,6 +12,7 @@
 #   DEVICE_PORT  default 4422
 #   DEVICE_USER  default mobile
 #   DEVICE_SUDO_PASSWORD  only needed where sudo is not already passwordless
+#   ALLOW_UNAUTHENTICATED_TEST_PACKAGE  set to 1 only for a known test source
 #
 # Over USB, forward the device's sshd first:  iproxy 4422:22 &
 
@@ -191,9 +192,24 @@ grep -q 'Conflicts: coreutils' <<<"$apt_refusal" || {
 }
 
 echo "==> dpkg still installs and removes packages with uutils underneath it"
-run_privileged "sh -c 'cd /tmp && apt-get download tree'" >/dev/null 2>&1 || {
-    echo "error: could not fetch a package to test with" >&2
-    exit 65
+download_result="$(run_privileged "sh -c 'cd /tmp && apt-get download tree'" 2>&1)" || {
+    if grep -q 'could not be authenticated' <<<"$download_result" &&
+        [[ "${ALLOW_UNAUTHENTICATED_TEST_PACKAGE:-}" == 1 ]]; then
+        run_privileged "sh -c 'cd /tmp && apt-get --allow-unauthenticated download tree'" \
+            >/dev/null 2>&1 || {
+            echo "error: could not fetch the unauthenticated test package" >&2
+            exit 65
+        }
+    elif grep -q 'could not be authenticated' <<<"$download_result"; then
+        echo "error: the repository did not authenticate the test package" >&2
+        echo "       verify the configured source, or explicitly set" >&2
+        echo "       ALLOW_UNAUTHENTICATED_TEST_PACKAGE=1 for this device-only test" >&2
+        exit 65
+    else
+        echo "error: could not fetch a package to test with" >&2
+        sed 's/^/       /' <<<"$download_result" >&2
+        exit 65
+    fi
 }
 run_privileged "sh -c 'dpkg -i /tmp/tree_*.deb'" >/dev/null || {
     echo "error: dpkg -i failed after the swap" >&2
