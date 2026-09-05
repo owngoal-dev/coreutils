@@ -36,9 +36,20 @@ The package's `preinst` stashes the GNU binaries before the takeover and its `po
 
 While it is installed, apt refuses to do anything else — that is the `Conflicts` doing its job, and it clears the moment you remove this package. Use `dpkg -i` / `dpkg --remove` in the meantime.
 
-## No fork(), no privilege escalation
+## Ordinary spawn, no fork or exec
 
 Every child goes through `posix_spawn()`; `fork()`, `setuid()`, `setgid()` and `setgroups()` are defined to fail rather than imported, and the build refuses a binary that carries any of them. Children inherit the credentials the shell already had. Lowering still works — `nice` reduces its own priority, `timeout` signals the child's process group.
+
+`env`, `nice` and `nohup` now spawn and wait instead of calling exec. The build rejects exec imports and checks that launchers never request `POSIX_SPAWN_SETEXEC`. `timeout` explicitly unblocks its termination signals in the child so expiry stops the command promptly.
+
+The exec replacement has compatibility costs for `env`, `nice` and `nohup`:
+
+- A waiting wrapper remains alive: the shell's job PID is the wrapper, the command has its own PID, and nested wrappers add process overhead.
+- SIGKILL/SIGSTOP sent only to the wrapper cannot be forwarded; the command may keep running. Fault signals such as SIGSEGV/SIGABRT are not relayed either. Use process-group signals for the whole job, while accounting for possible duplicate delivery when the child receives both the group signal and the wrapper's relay.
+- Only the waiting parent's stdin/stdout/stderr copies close after spawn. Other inherited descriptors can keep pipes or descriptor-owned locks alive until the wrapper exits.
+- The wrapper installs a SIGCHLD handler before spawning to keep its child waitable. Spawn resets that handler to default in the child, replacing any originally inherited SIGCHLD ignore; programs relying on that ignore must set it again.
+
+Child exit/signal status is preserved, but PID identity and signal timing are not equivalent to exec. Host regressions and iOS build/package checks passed; this change has not been installed and tested on a device, and does not establish that bootstrap-wide repair hooks can be removed.
 
 ## About this build
 

@@ -125,16 +125,7 @@ fi
 
 # symredirect rewrites import table entries, so re-prove the gates on the bytes
 # that actually ship.
-if nm -m "$installed_binary" | grep -qE 'external _(fork|vfork)( |$)'; then
-    echo "error: staged binary carries a fork symbol" >&2
-    nm -m "$installed_binary" | grep -E 'external _(fork|vfork)( |$)' >&2
-    exit 65
-fi
-if nm -u "$installed_binary" |
-    grep -qE '^_(setuid|seteuid|setreuid|setgid|setegid|setregid|setgroups|initgroups)$'; then
-    echo "error: staged binary imports a privilege-changing syscall" >&2
-    exit 65
-fi
+"$repository_root/scripts/verify-process-symbols.sh" "$installed_binary"
 
 # Signing is last: symredirect rewrites the Mach-O, so it has to run first.
 ldid -S"$entitlements" -Cadhoc "$installed_binary"

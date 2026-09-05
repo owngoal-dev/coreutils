@@ -71,15 +71,50 @@ stand-in.
 
 `coreutils ls -l` reaches any utility without going through PATH.
 
-## No fork(), no privilege escalation
+## Ordinary posix_spawn only
 
-Forking a process that has the Objective-C runtime and Foundation loaded is not
-safe on iOS. Every child goes through `posix_spawn()`, and `fork()`, `setuid()`,
-`setgid()` and `setgroups()` are *defined to fail* rather than imported — the
-build refuses a binary that carries any of them, and `make build` proves it by
-running the utilities that spawn under lldb with a breakpoint on `fork`.
-Children inherit the credentials the shell already had. Lowering still works:
-`nice` reduces its own priority, `timeout` signals the child's process group.
+Every child goes through ordinary `posix_spawn()`. The build and package
+checks reject fork/exec imports, and the host runtime checks also reject
+`POSIX_SPAWN_SETEXEC`. `env`, `nice` and `nohup` spawn and wait through one
+shared implementation. `timeout` uses the same spawn primitive with an
+explicit child signal mask; the remaining launchers use Rust's spawn path.
+No bootstrap forkfix or exec repair is required by these callsites.
+
+Children inherit the caller's credentials. `fork()`, `setuid()`, `setgid()` and
+`setgroups()` remain defined to fail, preventing Rust's unused fallback from
+reaching those syscalls. `nice` still adjusts priority and `timeout` still
+signals the child's process group.
+
+### Compatibility costs
+
+Replacing exec with spawn changes `env`, `nice` and `nohup` in observable ways:
+
+- **An extra process stays alive.** The shell's job PID (including `$!`) is the
+  waiting wrapper, not the command's PID. The command also has a different
+  parent PID. Each nested wrapper adds a process and its resource overhead;
+  scripts that depend on exec preserving PID identity need adjustment.
+- **Controlling only the wrapper does not always control the command.**
+  SIGKILL/SIGSTOP cannot be forwarded. Killing just the wrapper can leave the
+  command running; stopping it can leave the command running too. Fault signals
+  such as SIGSEGV and SIGABRT are also not relayed. Use process-group signals
+  when controlling the whole job.
+- **Signal delivery is not identical to exec.** The wrapper relays ordinary
+  control signals and follows child stop/exit status, but adds delivery delay.
+  A signal sent to the whole group can reach the child directly and again via
+  the wrapper, so handlers must not assume exactly one delivery. Reported exit
+  and signal status does not restore the original PID/job-control semantics.
+- **Some descriptors stay open longer.** The waiting parent closes its copies
+  of stdin, stdout and stderr. Other inherited descriptors remain open until
+  it exits, which can delay EOF or release of descriptor-owned locks even if
+  the command closes its copy.
+- **SIGCHLD ignore is an exception to inheritance.** The wrapper installs a
+  SIGCHLD handler before spawning so its child remains waitable. Spawn resets
+  that caught handler to the default disposition in the child, even if SIGCHLD
+  was originally ignored. Programs relying on that ignore must set it again.
+
+These packages passed host regression tests and iOS build/package checks; this
+change has not been installed and tested on a device. Those checks do not
+establish that bootstrap-wide forkfix or exec repair hooks can be removed.
 
 ## Not included
 
@@ -95,7 +130,7 @@ make debs      # both packages + SHA256SUMS
 make install   # apt-swap it onto a device over SSH, then smoke-test
 ```
 
-Needs Xcode, `rustup`, `ldid`, `dpkg` and `clang++`. See [`AGENTS.md`](AGENTS.md)
+Needs Xcode (including LLDB), `rustup`, Python 3, `ldid`, `dpkg` and `clang++`. See [`AGENTS.md`](AGENTS.md)
 for the contract this repository follows.
 
 ## License

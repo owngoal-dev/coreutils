@@ -68,9 +68,9 @@ fork_calls="$(grep -rn --include='*.rs' -E '\b(libc|unistd|nix::unistd)::(fork|v
     exit 65
 }
 
-# CommandExt itself is fine -- chroot, nice, nohup and runcon use its exec(),
-# which replaces the process image and never forks. It is these four builders
-# that push std off posix_spawn(). Scan the files that pull the trait in.
+# Scan CommandExt users for builders that force fork. The final symbol audit
+# also rejects exec: env, nice and nohup use ordinary posix_spawnp on Apple;
+# chroot and runcon are excluded from the shipped feature set.
 patched_file="src/uu/timeout/src/platform/unix.rs"
 fork_forcing='\.(pre_exec|before_exec|uid|gid|groups)\('
 while read -r command_ext_user; do
@@ -99,6 +99,10 @@ stray_pre_exec="$(grep -rn --include='*.rs' -E '\.(pre_exec|before_exec)\(' "$ca
     sed 's/^/       /' <<<"$stray_pre_exec" >&2
     exit 65
 }
+if grep -rn --include='*.rs' 'POSIX_SPAWN_SETEXEC' "$cargo_root/src"; then
+    echo "error: SETEXEC still replaces the process image; use ordinary spawn" >&2
+    exit 65
+fi
 echo "    no fork() path compiled for $rust_target" >&2
 
 command -v rustup >/dev/null || { echo "error: rustup is not installed" >&2; exit 69; }
@@ -166,43 +170,10 @@ while read -r dependency; do
     esac
 done < <(otool -L "$executable" | tail -n +2 | awk '{print $1}')
 
-# The other half of the fork() audit, on the Mach-O this time. patches/0002
-# defines fork() rather than importing it, and under the crate's `lto = "fat"`
-# profile that definition is inlined into std's unused fallback, so the symbol
-# should be gone from the binary entirely.
-#
-# _pthread_atfork stays and is fine: it is the rand crate registering a handler
-# that reseeds its RNG in a forked child (rand::rngs::adapter::reseeding). It
-# only registers; with no fork() it can never run.
-fork_imports="$(nm -m "$executable" | grep -E 'external _(fork|vfork)( |$)' || true)"
-[[ -z "$fork_imports" ]] || {
-    echo "error: $executable still carries a fork symbol:" >&2
-    sed 's/^/       /' <<<"$fork_imports" >&2
-    exit 65
-}
-nm -m "$executable" | grep -qE 'external _posix_spawnp?( |$)' || {
-    echo "error: $executable does not import posix_spawn" >&2
-    exit 65
-}
-echo "==> no _fork/_vfork in the Mach-O; process spawning is posix_spawn only" >&2
-
-# No privilege escalation. Children come from posix_spawn() and inherit the
-# credentials this process was launched with; nothing re-assumes an identity.
-# patches/0003 drops chroot, the only utility that called these.
-#
-# _setpgid stays: `timeout` puts the child in its own process group so it can
-# signal the whole group on expiry, which is what GNU timeout does and costs no
-# privilege. _setsid is an import std carries for a Command option no utility
-# sets.
-escalation="$(nm -u "$executable" |
-    grep -E '^_(setuid|seteuid|setreuid|setgid|setegid|setregid|setgroups|initgroups)$' || true)"
-[[ -z "$escalation" ]] || {
-    echo "error: $executable imports a privilege-changing syscall:" >&2
-    sed 's/^/       /' <<<"$escalation" >&2
-    echo "       children inherit credentials through posix_spawn; nothing escalates" >&2
-    exit 65
-}
-echo "==> no setuid/setgid/setgroups; credentials are inherited, never assumed" >&2
+# LTO removes std's unreachable fork/exec fallback after patches/0002 denies
+# fork. pthread_atfork is only rand registering a handler; setpgid is timeout's
+# process-group setup, and neither creates a process or changes credentials.
+"$repository_root/scripts/verify-process-symbols.sh" "$executable"
 
 # Anything newer than the deployment target is weak-linked and NULL on an older
 # device. There is nothing to guard as long as this stays empty.

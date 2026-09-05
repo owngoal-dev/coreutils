@@ -66,39 +66,41 @@ backs both packages.
   the same content. The stand-in is pure shell built-ins on purpose: `awk` and
   `grep` are separate packages a bootstrap need not have, and it has to work on
   a system whose coreutils just changed.
-- **Nothing may reach `fork()`.** This binary loads the Objective-C runtime and
-  Foundation, and forking such a process is not safe on iOS. Three gates, all
-  automatic:
-  - `build-ios.sh` audits the prepared source: no direct `fork`/`vfork`/`daemon`
-    call, and no `pre_exec`, `before_exec`, `uid`, `gid` or `groups` on a
-    `Command` — those five are what make `std` fall back to `fork()` + `exec()`
-    instead of `posix_spawn()`. It scans the files importing
-    `std::os::unix::process::CommandExt`; importing the trait is fine on its
-    own, because `chroot`, `nice`, `nohup` and `runcon` only want its `exec()`,
-    which replaces the process image and never forks. `timeout` is the one
-    upstream case and must stay guarded by `#[cfg(not(target_vendor =
-    "apple"))]`.
-  - `build-ios.sh` and `package-deb.sh` reject a Mach-O carrying `_fork` or
-    `_vfork` and require `posix_spawn`.
-  - `verify-no-fork.sh` builds the same prepared source for the host — the
-    patches key off `target_vendor = "apple"`, which is equally true there — and
-    runs `env`, `nice`, `timeout` and `sort --compress-program` under lldb with
-    breakpoints on `fork` and `vfork`. `make build` runs it.
-  `_pthread_atfork` stays and is expected: it is the `rand` crate registering a
-  reseeding handler that can never fire.
-- **Two utilities replace the process image, and that is a recorded
-  exception.** `nice` and `nohup` end with `CommandExt::exec()` rather than
-  spawning and waiting, so `_execvp` is in the shipped Mach-O. The skill
-  prefers `posix_spawn()` for this too: an `execve()` drops the caller's signed
-  identity and entitlements, and the new image has to satisfy AMFI on its own.
-  They are kept because that is what `nice` and `nohup` *are* -- GNU's do the
-  same, the child keeps the caller's pid so the invoking shell's job control
-  sees one process, and the exit status is the child's without a wrapper in the
-  middle. Both were exercised on iOS 18.5 and 26.6.1 and both work. If either
-  starts failing on a device, spawning and waiting is the fix, at the cost of
-  an extra process in the tree and hand-forwarded signals. `chroot` and
-  `runcon` use `exec()` too and neither ships: `chroot` is dropped by
-  `patches/0003`, `runcon` needs SELinux.
+- **Every process launch uses ordinary `posix_spawn`, never fork or exec.**
+  This binary loads the Objective-C runtime and Foundation. It must not rely
+  on a bootstrap's forkfix or exec repair. `POSIX_SPAWN_SETEXEC` is also
+  prohibited: it still replaces the process image.
+  - `build-ios.sh` audits the prepared source for direct fork calls,
+    `POSIX_SPAWN_SETEXEC`, and Command builders that force Rust's fork fallback
+    (`pre_exec`, `before_exec`, `uid`, `gid`, `groups`). The timeout pre-exec
+    block stays excluded on Apple targets by `patches/0001`.
+  - `verify-process-symbols.sh` is shared by the iOS build, host verifier and
+    packager. It rejects fork/exec and credential-changing imports and requires
+    posix_spawn, including after symredirect. `patches/0002` retains its EPERM
+    stubs so Rust's unreachable fork fallback cannot become a real fork.
+    `_pthread_atfork` is only rand registering its reseeding handler.
+  - `verify-no-fork.sh` builds the Apple code for the host and runs
+    `verify-spawn.py`: argument/environment handling, error and signal status,
+    signal forwarding, stop/continue and pipe EOF. LLDB must observe spawn,
+    zero fork/exec hits, no SETEXEC flags and a successful exit for env, nice,
+    nohup, timeout, sort compression, split filters and install stripping.
+    Timeout expiry is tested outside LLDB, which introduces HUP into Darwin's
+    sigwait; the trace uses a zero duration through the same spawn path.
+    Uptime has a native smoke check; its sysctl spawn is a fallback when the
+    host lacks a BOOT_TIME record, so it is not guaranteed dynamic coverage.
+- **The exec-to-spawn compatibility boundary is explicit.** `env`, `nice` and
+  `nohup` share the Apple `spawn_and_wait` helper in `patches/0005`. The child
+  receives the prepared environment, cwd, descriptors and signal mask; the
+  parent forwards asynchronous signals and follows child stop/exit status.
+  There is an extra parent PID: SIGKILL/SIGSTOP directed only at that PID cannot
+  be forwarded. Use process-group signals for whole-job control. The parent
+  installs a SIGCHLD handler before spawn to keep the child waitable; spawn
+  resets that caught disposition to default in the child even if SIGCHLD was
+  originally ignored. Parent stdio copies close after launch so they
+  do not delay pipe EOF. The helper is for a single-threaded terminal utility
+  that owns no other child, not a general process supervisor.
+  Removing these callsites proves only this binary's launch behavior; deleting
+  bootstrap repair hooks still requires a separate whole-bootstrap validation.
 - **Nothing escalates privilege.** Children come from `posix_spawn()` and
   inherit the credentials this process was launched with; no utility re-assumes
   an identity. `build-ios.sh` and `package-deb.sh` reject a Mach-O importing
@@ -129,6 +131,18 @@ backs both packages.
 - `configuration/version.txt` is the only package-version source, and
   `prepare-source.sh` refuses a tree whose Cargo workspace version disagrees.
 
+- Darwin's sigwait needs a caught SIGCHLD before spawning; default SIGCHLD
+  disposition alone can leave the waiter asleep after the child exits. A
+  successful wake with signal 0 under LLDB means recheck the child, not a
+  signal to forward. POSIX spawn/sigwait routines return an error number
+  directly, so do not pass their results through a helper that recognizes
+  only `-1` plus errno.
+- Resolve LLDB shared-cache breakpoints after stopping at main; prelaunch
+  addresses can refer to the debugger's cache layout rather than the inferior.
+  Read spawn flags through a register callback and test it with an attribute-only
+  SETEXEC control that never launches a replacement image.
+- Under `pipefail`, capture nm output before matching with `grep -q`; an early
+  grep exit must not make a forbidden-symbol match disappear as SIGPIPE.
 - `CLAUDE.md` must remain a symlink to `AGENTS.md`.
 - Test by installing a package, never by copying the binary to `/var/mobile`: a
   copied binary runs with its entitlements ignored.
@@ -146,10 +160,10 @@ and no bootstrap-path derivation; and it calls `fork()` nowhere.
 - `0001-ios-timeout-spawn-without-pre-exec.patch` — `timeout` was the only
   place attaching a `pre_exec` closure to a `Command`, which is what pushes
   `std` off `posix_spawn()` onto `fork()` + `exec()`. Compiled out on Apple.
-  `posix_spawn()` already clears the child's signal mask and resets SIGPIPE;
-  what is given up is inherited state (a SIGPIPE ignore, a closed stdin, or a
-  SIGTTIN/SIGTTOU ignore that `timeout`'s *own* parent had set) being fixed up
-  in the child.
+  Apple uses the native spawn helper from `0005` to unblock timeout signals
+  in the child. Rust Command::spawn inherits the parent mask; assuming it
+  clears that mask makes timeout wait for the child's natural exit. Closed
+  stdin and SIGTTIN/SIGTTOU fixups from the pre-exec block remain skipped.
 - `0002-ios-deny-fork-and-credential-syscalls.patch` — defines `fork()`,
   `setuid()`, `setgid()` and `setgroups()` in the binary instead of importing
   them, each returning `EPERM`, so `std`'s unused fork fallback (and the child
@@ -159,6 +173,13 @@ and no bootstrap-path derivation; and it calls `fork()` nowhere.
 - `0003-ios-drop-chroot-no-privilege-escalation.patch` — removes `chroot` from
   `feat_require_unix_core`. Cargo features cannot be subtracted, so the list
   itself is patched; a daily rebase surfaces it if upstream reshapes the set.
+- `0004-ios-nohup-without-console-detach.patch` — skips the macOS-only
+  console detach on iOS, where it fails before the command can start.
+- `0005-apple-spawn-instead-of-exec.patch` — replaces env's direct execvp and
+  nice/nohup's CommandExt::exec with the shared ordinary posix_spawnp path.
+  Timeout uses the same primitive with an explicit child mask, retaining its
+  existing wait, signal-forwarding and process-group behavior. Its test must
+  check elapsed time, not just the eventual 124 exit status.
 - `dependencies/xattr-0001-support-ios.patch` — the `xattr` crate's platform
   table lists macOS but not iOS, so it compiles its `unsupported` fallback and
   every call fails at runtime. That surfaces as `cp: setting attributes for
