@@ -86,6 +86,19 @@ backs both packages.
     breakpoints on `fork` and `vfork`. `make build` runs it.
   `_pthread_atfork` stays and is expected: it is the `rand` crate registering a
   reseeding handler that can never fire.
+- **Two utilities replace the process image, and that is a recorded
+  exception.** `nice` and `nohup` end with `CommandExt::exec()` rather than
+  spawning and waiting, so `_execvp` is in the shipped Mach-O. The skill
+  prefers `posix_spawn()` for this too: an `execve()` drops the caller's signed
+  identity and entitlements, and the new image has to satisfy AMFI on its own.
+  They are kept because that is what `nice` and `nohup` *are* -- GNU's do the
+  same, the child keeps the caller's pid so the invoking shell's job control
+  sees one process, and the exit status is the child's without a wrapper in the
+  middle. Both were exercised on iOS 18.5 and 26.6.1 and both work. If either
+  starts failing on a device, spawning and waiting is the fix, at the cost of
+  an extra process in the tree and hand-forwarded signals. `chroot` and
+  `runcon` use `exec()` too and neither ships: `chroot` is dropped by
+  `patches/0003`, `runcon` needs SELinux.
 - **Nothing escalates privilege.** Children come from `posix_spawn()` and
   inherit the credentials this process was launched with; no utility re-assumes
   an identity. `build-ios.sh` and `package-deb.sh` reject a Mach-O importing
