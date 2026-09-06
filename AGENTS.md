@@ -219,7 +219,7 @@ make install       # apt-swap it onto a device and smoke-test, apt included
 `make install` takes `DEVICE_HOST`, `DEVICE_PORT`, `DEVICE_USER` and
 `DEVICE_SUDO_PASSWORD`. Over USB, forward sshd first: `iproxy 4422:22 &`.
 
-## OwnGoalPackages
+## owngoal-packages
 
 Release first, then add the manifest entry: the APT build fails if an entry has
 no release. Tag `vX.Y.Z`, non-draft, non-prerelease; assets ending in
