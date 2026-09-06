@@ -2,38 +2,14 @@ Package: @PACKAGE_ID@
 Name: uutils coreutils
 Version: @VERSION@
 Architecture: @ARCHITECTURE@
-Description: GNU coreutils rewritten in Rust, for jailbroken iOS
- The uutils reimplementation of the GNU core utilities -- ls, cp, mv, cat,
- sort, dd, du and about a hundred more -- cross-compiled for iOS and packaged
- for both roothide and rootless bootstraps from one arm64 build. The
- architecture field says which layout this package is, not which CPU it runs
- on. Upstream is @UPSTREAM@.
- .
- This takes over the GNU coreutils in usr/bin: one multi-call binary with a
- symlink per utility beside it, unpacked over the files the GNU package owns.
- .
- It conflicts with coreutils deliberately, so no package manager installs it
- by accident -- resolving from a repository would mean removing a package that
- apt, dpkg and Sileo themselves depend on, and they will refuse. Installing it
- is an explicit act:
- .
- `sudo dpkg -i --force-conflicts wiki.qaq.uutils_*.deb`
- .
- That unpacks over the GNU files and leaves the GNU package registered, so
- nothing is deleted and `rm` never leaves PATH. Do NOT feed the .deb to
- `apt install` directly: apt treats a local file as an explicit request and
- will remove coreutils first, which takes `rm` away mid-transaction and wedges
- dpkg with no way back except SSH and the stash this package leaves in
- usr/libexec/uutils/gnu-backup.
- .
- Every process these utilities start goes through posix_spawn(); there is no
- fork() in the binary, no setuid/setgid, and nothing escalates privilege:
- children inherit what the shell had.
- .
- Not included, because they cannot work here: stdbuf (its helper library would
- have to be injected into a platform-signed process), chroot (needs root and
- the credential syscalls this binary denies), chcon and runcon (SELinux).
- getent is not a uutils utility; a small stand-in ships in its place.
+Description: The core command-line tools, rewritten in Rust
+ ls, cp, mv, cat, sort, dd, du and around a hundred more, replacing the GNU
+ versions in usr/bin with faster, clearer ones that speak the same options.
+ Install this one by hand, with `dpkg -i --force-conflicts` -- installing it
+ through Sileo or apt takes `rm` away in the middle of the job and leaves the
+ device unable to finish. The originals are kept in
+ usr/libexec/uutils/gnu-backup. stdbuf, chroot, chcon and runcon are left out
+ because they cannot work on iOS.
 Maintainer: OwnGoal Studio <not-gonna-reply@owngoal.dev>
 Author: uutils developers <https://github.com/uutils/coreutils>
 Section: Utilities
