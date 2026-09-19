@@ -92,6 +92,8 @@ set-version:
 	@"$(VERSION_APPLIER)" "$(VERSION)"
 
 check:
+	@python3 "$(ROOT_DIR)/scripts/test-apply-patch.py"
+	@python3 -m json.tool "$(ROOT_DIR)/docs/depiction.json" >/dev/null
 	@echo "==> shell syntax"
 	@for script in "$(ROOT_DIR)"/scripts/*.sh; do bash -n "$$script" || exit 1; done
 	@# CI runs on the macOS system bash, which is 3.2: no mapfile, no ${x^^}.

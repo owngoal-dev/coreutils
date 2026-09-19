@@ -1,0 +1,29 @@
+{
+  "class": "DepictionTabView",
+  "minVersion": "0.4",
+  "tabs": [
+    {
+      "class": "DepictionStackView",
+      "tabname": "Details",
+      "views": [
+        {
+          "class": "DepictionSubheaderView",
+          "title": "Core Command-Line Tools",
+          "useBoldText": true
+        },
+        {
+          "class": "DepictionHeaderView",
+          "title": "Description"
+        },
+        {
+          "class": "DepictionSeparatorView"
+        },
+        {
+          "class": "DepictionMarkdownView",
+          "markdown": "Run familiar tools including `ls`, `cp`, `mv`, `cat`, `sort`, `dd`, and `du` with the Rust-based uutils coreutils. This package replaces the bootstrap’s GNU coreutils.\n\n## Installation\n\nInstall explicitly with `dpkg -i --force-conflicts <deb>`. Do not install through Sileo or apt: resolving the conflict removes GNU coreutils before the replacement can be unpacked and can leave the device unable to finish installation. The original GNU binaries are backed up in `usr/libexec/uutils/gnu-backup` for restoration when removing this package.\n\n## Compatibility\n\nRequires iOS 15 or later and a roothide or rootless bootstrap. Choose `iphoneos-arm64e` for roothide or `iphoneos-arm64` for rootless. `stdbuf`, `chroot`, `chcon`, and `runcon` are excluded.\n\nCommands launched by `env`, `nice`, and `nohup` have an extra parent process. Use process-group signals for whole-job control; SIGKILL and SIGSTOP sent only to the parent cannot be forwarded.\n\n[View Source and Installation Instructions](https://github.com/owngoal-dev/coreutils)",
+          "useSpacing": true
+        }
+      ]
+    }
+  ]
+}

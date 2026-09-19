@@ -114,6 +114,10 @@ backs both packages.
 - Pin `UPSTREAM_REF` to the full commit behind the newest stable upstream
   release. The daily workflow updates the pin, proves the patches apply, then
   tags and releases it.
+- Patch application uses `scripts/apply-patch.py`: try the full patch first;
+  then permit outer-context drift only when every retained one-line context
+  anchor is unique. Changes to replaced lines or retained context, missing
+  files and ambiguous anchors must fail. `make check` tests these boundaries.
 - Keep upstream changes as small patches under `patches/`; never vendor source.
   Dependency patches live in `patches/dependencies/` and are applied to the
   crate the lockfile already pinned, unpacked from the registry cache and handed

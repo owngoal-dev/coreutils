@@ -19,3 +19,5 @@ Provides: md5sum, sha1sum, dirname, kill, mktemp
 Replaces: coreutils, system-cmds, shell-cmds (<< 207.40.1), text-cmds (<< 1:0), file-cmds (<< 272.250.1-1)
 Conflicts: coreutils, shell-cmds (<< 207.40.1), text-cmds (<< 1:0), file-cmds (<< 272.250.1-1), system-cmds (<< 854.40.2-3)
 Installed-Size: @INSTALLED_SIZE@
+Depiction: https://owngoal-dev.github.io/coreutils/
+SileoDepiction: https://owngoal-dev.github.io/coreutils/depiction.json

@@ -34,6 +34,10 @@ mkdir -p "$host_dir"
 
 export CARGO_HOME="$scratch_dir/cargo-home"
 export CARGO_TARGET_DIR="$host_dir/target"
+# Homebrew cargo/rustc need not be rustup proxies; select both explicitly.
+export RUSTC RUSTDOC
+RUSTC="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
+RUSTDOC="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustdoc)"
 unset SDKROOT IPHONEOS_DEPLOYMENT_TARGET
 
 xattr_source="$("$repository_root/scripts/prepare-xattr.sh" "$cargo_root" "$CARGO_HOME" "$scratch_dir/dependencies")"
@@ -41,7 +45,7 @@ xattr_source="$("$repository_root/scripts/prepare-xattr.sh" "$cargo_root" "$CARG
 echo "building $CARGO_BIN for the host to exercise the Apple spawn path" >&2
 (
     cd "$cargo_root"
-    cargo +"$RUST_TOOLCHAIN" build \
+    rustup run "$RUST_TOOLCHAIN" cargo build \
         --release \
         --no-default-features \
         --features "$CARGO_FEATURES" \

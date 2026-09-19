@@ -38,7 +38,8 @@ upstream_version="${package_version%%-*}"
     exit 65
 }
 
-stamp_input="$UPSTREAM_REPO@$UPSTREAM_REF"$'\n'
+stamp_input="$(shasum -a 256 "$repository_root/scripts/apply-patch.py")"$'\n'
+stamp_input+="$UPSTREAM_REPO@$UPSTREAM_REF"$'\n'
 for patch in "${patches[@]}"; do
     stamp_input+="$(shasum -a 256 "$patch" | cut -d ' ' -f 1)  $(basename "$patch")"$'\n'
 done
@@ -61,7 +62,7 @@ rm -f "$stamp_file"
 
 echo "fetching $UPSTREAM_REPO at $UPSTREAM_REF"
 git -C "$work_dir" fetch --quiet --depth 1 --force origin "$UPSTREAM_REF"
-git -C "$work_dir" checkout --quiet --detach FETCH_HEAD
+git -C "$work_dir" checkout --quiet --force --detach FETCH_HEAD
 git -C "$work_dir" reset --quiet --hard FETCH_HEAD
 git -C "$work_dir" clean -qfdx
 
@@ -70,7 +71,7 @@ echo "checked out $resolved_ref"
 
 for patch in "${patches[@]}"; do
     echo "applying $(basename "$patch")"
-    if ! git -C "$work_dir" apply --whitespace=nowarn "$patch"; then
+    if ! python3 "$repository_root/scripts/apply-patch.py" "$work_dir" "$patch"; then
         echo "error: $(basename "$patch") does not apply to $resolved_ref" >&2
         echo "       upstream moved; rebase the patch or repin UPSTREAM_REF" >&2
         exit 65

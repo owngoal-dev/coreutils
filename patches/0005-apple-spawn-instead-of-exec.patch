@@ -1,7 +1,7 @@
 diff --git a/src/uu/env/Cargo.toml b/src/uu/env/Cargo.toml
 --- a/src/uu/env/Cargo.toml
 +++ b/src/uu/env/Cargo.toml
-@@ -19,7 +19,7 @@
+@@ -19,7 +19,7 @@ doctest = false
  clap = { workspace = true }
  rust-ini = { workspace = true }
  thiserror = { workspace = true }
@@ -13,7 +13,7 @@ diff --git a/src/uu/env/Cargo.toml b/src/uu/env/Cargo.toml
 diff --git a/src/uu/env/src/env.rs b/src/uu/env/src/env.rs
 --- a/src/uu/env/src/env.rs
 +++ b/src/uu/env/src/env.rs
-@@ -23,7 +23,7 @@
+@@ -23,7 +23,7 @@ use native_int_str::{
  use nix::libc;
  #[cfg(all(unix, not(target_os = "fuchsia")))]
  use nix::sys::signal::{SigSet, SigmaskHow, Signal, sigprocmask};
@@ -22,7 +22,7 @@ diff --git a/src/uu/env/src/env.rs b/src/uu/env/src/env.rs
  use nix::unistd::execvp;
  use std::borrow::Cow;
  #[cfg(all(unix, not(target_os = "fuchsia")))]
-@@ -31,7 +31,7 @@
+@@ -31,7 +31,7 @@ use std::collections::BTreeMap;
  #[cfg(unix)]
  use std::collections::BTreeSet;
  use std::env;
@@ -31,7 +31,7 @@ diff --git a/src/uu/env/src/env.rs b/src/uu/env/src/env.rs
  use std::ffi::CString;
  use std::ffi::{OsStr, OsString};
  use std::io;
-@@ -878,7 +878,7 @@
+@@ -878,7 +878,7 @@ impl EnvAppData {
  
      /// Run the program specified by the options.
      ///
@@ -40,7 +40,7 @@ diff --git a/src/uu/env/src/env.rs b/src/uu/env/src/env.rs
      /// <https://github.com/uutils/coreutils/issues/8361> for more information.
      ///
      /// Exit status:
-@@ -921,7 +921,24 @@
+@@ -921,7 +921,24 @@ impl EnvAppData {
              }
          }
  
@@ -69,7 +69,7 @@ diff --git a/src/uu/env/src/env.rs b/src/uu/env/src/env.rs
 diff --git a/src/uu/nice/Cargo.toml b/src/uu/nice/Cargo.toml
 --- a/src/uu/nice/Cargo.toml
 +++ b/src/uu/nice/Cargo.toml
-@@ -18,7 +18,7 @@
+@@ -18,7 +18,7 @@ doctest = false
  
  [dependencies]
  clap = { workspace = true }
@@ -81,74 +81,77 @@ diff --git a/src/uu/nice/Cargo.toml b/src/uu/nice/Cargo.toml
 diff --git a/src/uu/nice/src/nice.rs b/src/uu/nice/src/nice.rs
 --- a/src/uu/nice/src/nice.rs
 +++ b/src/uu/nice/src/nice.rs
-@@ -9,7 +9,9 @@
+@@ -8,7 +8,7 @@
+ use clap::{Arg, ArgAction, Command};
  use std::ffi::OsString;
  use std::io::{ErrorKind, Write, stdout};
- use std::num::IntErrorKind;
-+#[cfg(not(target_vendor = "apple"))]
- use std::os::unix::process::CommandExt;
-+#[cfg(not(target_vendor = "apple"))]
- use std::process;
- 
- use uucore::translate;
-@@ -146,7 +148,13 @@
-     let cmd = cmd_iter.next().unwrap();
+-#[cfg(unix)]
++#[cfg(all(unix, not(target_vendor = "apple")))]
+ use std::os::unix::process::CommandExt as _;
+ #[cfg(windows)]
+ use std::os::windows::process::CommandExt as _;
+@@ -170,8 +170,13 @@ pub fn uumain(args: impl uucore::Args) -> UResult<()> {
      let args: Vec<&String> = cmd_iter.collect();
- 
-+    #[cfg(not(target_vendor = "apple"))]
-     let err = process::Command::new(cmd).args(args).exec();
+     let mut command = process::Command::new(cmd);
+     command.args(args);
+-    #[cfg(unix)]
++    #[cfg(all(unix, not(target_vendor = "apple")))]
+     let err = command.exec();
 +    #[cfg(target_vendor = "apple")]
 +    let err = uucore::process::spawn_and_wait(
-+        std::ffi::OsStr::new(cmd),
-+        std::iter::once(cmd).chain(args),
++        command.get_program(),
++        std::iter::once(command.get_program()).chain(command.get_args()),
 +    );
- 
-     show_error!("{cmd}: {err}");
- 
+     #[cfg(windows)]
+     let Err(err) = command.creation_flags(priority_class).spawn() else {
+         return Ok(());
 diff --git a/src/uu/nohup/Cargo.toml b/src/uu/nohup/Cargo.toml
 --- a/src/uu/nohup/Cargo.toml
 +++ b/src/uu/nohup/Cargo.toml
-@@ -20,7 +20,7 @@
+@@ -18,7 +18,7 @@ doctest = false
+ 
+ [dependencies]
  clap = { workspace = true }
- libc = { workspace = true }
- rustix = { workspace = true, features = ["process", "stdio"] }
 -uucore = { workspace = true, features = ["fs"] }
 +uucore = { workspace = true, features = ["fs", "process"] }
  thiserror = { workspace = true }
  fluent = { workspace = true }
  
-diff --git a/src/uu/nohup/src/nohup.rs b/src/uu/nohup/src/nohup.rs
---- a/src/uu/nohup/src/nohup.rs
-+++ b/src/uu/nohup/src/nohup.rs
-@@ -13,8 +13,10 @@
+diff --git a/src/uu/nohup/src/platform/unix.rs b/src/uu/nohup/src/platform/unix.rs
+--- a/src/uu/nohup/src/platform/unix.rs
++++ b/src/uu/nohup/src/platform/unix.rs
+@@ -7,7 +7,9 @@
+ 
  use std::fs::{File, OpenOptions};
- use std::io::{Error, ErrorKind, IsTerminal};
- use std::os::unix::fs::OpenOptionsExt;
+ use std::io::{Error, IsTerminal as _};
+-use std::os::unix::{fs::OpenOptionsExt as _, process::CommandExt as _};
++use std::os::unix::fs::OpenOptionsExt as _;
 +#[cfg(not(target_vendor = "apple"))]
- use std::os::unix::process::CommandExt;
- use std::path::{Path, PathBuf};
-+#[cfg(not(target_vendor = "apple"))]
- use std::process;
- use std::sync::LazyLock;
- use thiserror::Error;
-@@ -98,7 +100,13 @@
-     let cmd = cmd_iter.next().unwrap();
-     let args: Vec<&String> = cmd_iter.collect();
- 
++use std::os::unix::process::CommandExt as _;
+ use std::process::Command;
+ use thiserror::Error as ThisError;
+ use uucore::error::{UError, UResult};
+@@ -54,7 +56,14 @@ pub(crate) fn prepare() -> UResult<()> {
+     reason = "signature shared with the Windows implementation, which can fail"
+ )]
+ pub(crate) fn run(command: &mut Command) -> UResult<Option<Error>> {
+-    Ok(Some(command.exec()))
 +    #[cfg(not(target_vendor = "apple"))]
-     let err = process::Command::new(cmd).args(args).exec();
++    let error = command.exec();
 +    #[cfg(target_vendor = "apple")]
-+    let err = uucore::process::spawn_and_wait(
-+        std::ffi::OsStr::new(cmd),
-+        std::iter::once(cmd).chain(args),
++    let error = uucore::process::spawn_and_wait(
++        command.get_program(),
++        std::iter::once(command.get_program()).chain(command.get_args()),
 +    );
++    Ok(Some(error))
+ }
  
-     show_error!(
-         "{}",
+ /// POSIX nohup creates the output file with mode 0600 so that other users on a
 diff --git a/src/uu/timeout/src/platform/unix.rs b/src/uu/timeout/src/platform/unix.rs
 --- a/src/uu/timeout/src/platform/unix.rs
 +++ b/src/uu/timeout/src/platform/unix.rs
-@@ -10,5 +10,8 @@
+@@ -9,7 +9,10 @@ use std::io;
+ #[cfg(not(target_vendor = "apple"))]
  use std::os::unix::process::CommandExt;
  use std::os::unix::process::ExitStatusExt;
 +#[cfg(not(target_vendor = "apple"))]
@@ -157,7 +160,9 @@ diff --git a/src/uu/timeout/src/platform/unix.rs b/src/uu/timeout/src/platform/u
 +use uucore::process::SpawnedChild as Child;
  
  use rustix::process::{Pid, Signal, getpid, kill_process, setpgid};
-@@ -103,4 +106,13 @@
+ use uucore::process::{ChildExt, timeout_signal_set, unblock_signal};
+@@ -102,6 +105,15 @@ pub(crate) fn prepare(
+     Ok(())
  }
  
 +#[cfg(target_vendor = "apple")]
@@ -171,10 +176,11 @@ diff --git a/src/uu/timeout/src/platform/unix.rs b/src/uu/timeout/src/platform/u
 +
  /// Unix keeps no per-spawn platform state; the type exists so the facade
  /// signatures match the Windows implementation (which carries a job object).
+ pub(crate) struct SpawnState;
 diff --git a/src/uu/timeout/src/timeout.rs b/src/uu/timeout/src/timeout.rs
 --- a/src/uu/timeout/src/timeout.rs
 +++ b/src/uu/timeout/src/timeout.rs
-@@ -13,11 +13,15 @@
+@@ -13,11 +13,15 @@ mod status;
  use crate::status::ExitStatus;
  use clap::{Arg, ArgAction, Command};
  use std::io::{ErrorKind, Write};
@@ -191,7 +197,7 @@ diff --git a/src/uu/timeout/src/timeout.rs b/src/uu/timeout/src/timeout.rs
  use uucore::process::{ChildExt, TimeoutRet};
  use uucore::translate;
  
-@@ -268,7 +272,11 @@
+@@ -268,7 +272,11 @@ fn timeout(
      platform::prepare(&mut cmd_builder, foreground, signal)
          .map_err(|err| USimpleError::new(ExitStatus::TimeoutFailed.into(), err.to_string()))?;
  
@@ -207,25 +213,25 @@ diff --git a/src/uu/timeout/src/timeout.rs b/src/uu/timeout/src/timeout.rs
 diff --git a/src/uucore/src/lib/features/process/mod.rs b/src/uucore/src/lib/features/process/mod.rs
 --- a/src/uucore/src/lib/features/process/mod.rs
 +++ b/src/uucore/src/lib/features/process/mod.rs
-@@ -12,6 +12,13 @@
- use std::io;
+@@ -13,6 +13,13 @@ use std::io;
  use std::process::ExitStatus;
  use std::time::Duration;
-+
+ 
 +#[cfg(target_vendor = "apple")]
 +mod apple;
 +#[cfg(target_vendor = "apple")]
 +pub use apple::{SpawnedChild, spawn, spawn_and_wait};
 +#[cfg(target_vendor = "apple")]
 +pub use nix::sys::signal::SigSet;
- 
++
  /// Missing methods for Child objects
  pub trait ChildExt {
+     /// Send a signal to a Child process.
 diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/features/process/unix.rs
 --- a/src/uucore/src/lib/features/process/unix.rs
 +++ b/src/uucore/src/lib/features/process/unix.rs
-@@ -86,69 +86,83 @@
- #[cfg(not(target_os = "fuchsia"))]
+@@ -28,69 +28,83 @@ use super::{ChildExt, TimeoutRet};
+ #[cfg(not(any(target_os = "fuchsia", target_os = "haiku")))]
  impl ChildExt for Child {
      fn send_signal(&mut self, signal: usize) -> io::Result<()> {
 -        let pid = Pid::from_raw(self.id() as pid_t);
@@ -252,20 +258,18 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
 -        if signal == 0 {
 -            return nix_signal::kill(Pid::from_raw(0), None)
 -                .map_err(|e| io::Error::from_raw_os_error(e as i32));
--        }
--
 +        send_signal_group(signal)
 +    }
 +
 +    fn wait_or_timeout(&mut self, timeout: Duration, ignore_term: bool) -> io::Result<TimeoutRet> {
 +        if timeout.is_zero() {
 +            return self.wait().map(TimeoutRet::Exited);
-+        }
+         }
 +        drop(self.stdin.take());
 +        wait_or_timeout(timeout, ignore_term, || self.try_wait())
 +    }
 +}
-+
+ 
 +#[cfg(not(target_os = "fuchsia"))]
 +pub(super) fn send_signal(pid: u32, signal: usize) -> io::Result<()> {
 +    let pid = Pid::from_raw(pid as pid_t);
@@ -274,7 +278,11 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
 +    } else {
          let signal = Signal::try_from(signal as i32)
              .map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
--
++        nix_signal::kill(pid, Some(signal))
++    };
++    result.map_err(|e| io::Error::from_raw_os_error(e as i32))
++}
+ 
 -        // Ignore the signal temporarily so we don't receive it ourselves.
 -        let old_handler = unsafe { nix_signal::signal(signal, SigHandler::SigIgn) }
 -            .map_err(|e| io::Error::from_raw_os_error(e as i32))?;
@@ -282,15 +290,30 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
 -        // Restore the old handler
 -        let _ = unsafe { nix_signal::signal(signal, old_handler) };
 -        result.map_err(|e| io::Error::from_raw_os_error(e as i32))
--    }
--
++#[cfg(not(target_os = "fuchsia"))]
++pub(super) fn send_signal_group(signal: usize) -> io::Result<()> {
++    // Send signal to our process group (group 0 = caller's group).
++    // This matches GNU coreutils behavior: if the child has remained in our
++    // process group, it will receive this signal along with all other processes
++    // in the group. If the child has created its own process group (via setpgid),
++    // it won't receive this group signal, but will have received the direct signal.
++
++    // Signal 0 is special - it just checks if process exists, doesn't send anything.
++    // No need to manipulate signal handlers for it.
++    if signal == 0 {
++        return nix_signal::kill(Pid::from_raw(0), None)
++            .map_err(|e| io::Error::from_raw_os_error(e as i32));
+     }
+ 
 -    fn wait_or_timeout(&mut self, timeout: Duration, ignore_term: bool) -> io::Result<TimeoutRet> {
 -        if timeout == Duration::from_micros(0) {
 -            return self.wait().map(TimeoutRet::Exited);
 -        }
 -        // .try_wait() doesn't drop stdin, so we do it manually
 -        drop(self.stdin.take());
--
++    let signal =
++        Signal::try_from(signal as i32).map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
+ 
 -        // Waits continuously whenever we receive an external SIGCHLD or
 -        // we SIGTERM when we are ignoring them.
 -        let start = Instant::now();
@@ -309,30 +332,6 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
 -                Err(e) => break Err(e),
 -            }
 -            remaining = timeout.saturating_sub(start.elapsed());
--        }
-+        nix_signal::kill(pid, Some(signal))
-+    };
-+    result.map_err(|e| io::Error::from_raw_os_error(e as i32))
-+}
-+
-+#[cfg(not(target_os = "fuchsia"))]
-+pub(super) fn send_signal_group(signal: usize) -> io::Result<()> {
-+    // Send signal to our process group (group 0 = caller's group).
-+    // This matches GNU coreutils behavior: if the child has remained in our
-+    // process group, it will receive this signal along with all other processes
-+    // in the group. If the child has created its own process group (via setpgid),
-+    // it won't receive this group signal, but will have received the direct signal.
-+
-+    // Signal 0 is special - it just checks if process exists, doesn't send anything.
-+    // No need to manipulate signal handlers for it.
-+    if signal == 0 {
-+        return nix_signal::kill(Pid::from_raw(0), None)
-+            .map_err(|e| io::Error::from_raw_os_error(e as i32));
-+    }
-+
-+    let signal =
-+        Signal::try_from(signal as i32).map_err(|_| io::Error::from_raw_os_error(libc::EINVAL))?;
-+
 +    // Ignore the signal temporarily so we don't receive it ourselves.
 +    let old_handler = unsafe { nix_signal::signal(signal, SigHandler::SigIgn) }
 +        .map_err(|e| io::Error::from_raw_os_error(e as i32))?;
@@ -354,7 +353,7 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
 +    loop {
 +        if let Some(status) = try_wait()? {
 +            return Ok(TimeoutRet::Exited(status));
-+        }
+         }
 +        match timer.timed_sigwait(remaining) {
 +            Ok(None) => break Ok(TimeoutRet::TimedOut),
 +            Ok(Some(Signal::SIGCHLD)) => {}
@@ -366,7 +365,7 @@ diff --git a/src/uucore/src/lib/features/process/unix.rs b/src/uucore/src/lib/fe
      }
  }
  
-@@ -355,13 +369,15 @@
+@@ -307,13 +321,15 @@ impl Timer {
  
          let set = timeout_signal_set();
          let mut sig = 0;

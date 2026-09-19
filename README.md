@@ -133,6 +133,13 @@ make install   # apt-swap it onto a device over SSH, then smoke-test
 Needs Xcode (including LLDB), `rustup`, Python 3, `ldid`, `dpkg` and `clang++`. See [`AGENTS.md`](AGENTS.md)
 for the contract this repository follows.
 
+Patch application first requires an exact match. If only surrounding context has
+changed, it can retain one line of context on each side, provided every retained
+anchor occurs exactly once in its original file. Changes to replaced lines or
+retained context, renamed files, and ambiguous anchors still fail before that
+patch is applied.
+Build and process-behavior checks remain required before release.
+
 ## License
 
 The packaging in this repository is MIT. uutils coreutils itself is MIT, and

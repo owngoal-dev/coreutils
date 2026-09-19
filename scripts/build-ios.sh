@@ -121,6 +121,10 @@ cargo_home="$scratch_dir/cargo-home"
 mkdir -p "$cargo_home"
 export CARGO_HOME="$cargo_home"
 export CARGO_TARGET_DIR="$scratch_dir/target"
+# Homebrew cargo/rustc need not be rustup proxies; select both explicitly.
+export RUSTC RUSTDOC
+RUSTC="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustc)"
+RUSTDOC="$(rustup which --toolchain "$RUST_TOOLCHAIN" rustdoc)"
 # rustc embeds source paths (panic locations, debug info) for the checkout and
 # every registry crate. Remap them so the binary does not carry the build
 # machine's directories. Upstream's .cargo/config.toml sets rustflags only for
@@ -133,7 +137,7 @@ xattr_source="$("$repository_root/scripts/prepare-xattr.sh" "$cargo_root" "$carg
 # The vtool check below is the backstop; this is the front.
 (
     cd "$cargo_root"
-    cargo +"$RUST_TOOLCHAIN" build \
+    rustup run "$RUST_TOOLCHAIN" cargo build \
         --release \
         --target "$rust_target" \
         --no-default-features \
@@ -194,7 +198,7 @@ while IFS= read -r utility_name; do
     [[ -n "$utility_name" ]] && utilities+=("$utility_name")
 done < <(
     cd "$cargo_root" &&
-        cargo +"$RUST_TOOLCHAIN" tree \
+        rustup run "$RUST_TOOLCHAIN" cargo tree \
             --depth 1 \
             --no-default-features \
             --features "$CARGO_FEATURES" \

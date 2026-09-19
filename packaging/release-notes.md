@@ -11,7 +11,7 @@ The architecture field names the **bootstrap layout, not the CPU**. Both package
 
 Not sure? Ask the device: `dpkg --print-architecture`.
 
-Requires **iOS @MIN_IOS_MAJOR@ or later**. Or add the [OwnGoal Studio repository](https://github.com/owngoal-dev/owngoal-packages) and let your package manager pick.
+Requires **iOS @MIN_IOS_MAJOR@ or later**. Download the package matching your bootstrap and install it with the explicit `dpkg` command below.
 
 ## This takes over coreutils — on purpose, and only if you ask
 
@@ -61,8 +61,9 @@ Verify your download against `SHA256SUMS`.
 
 **Full changelog**: https://github.com/owngoal-dev/coreutils/commits/@TAG@
 
-This packaging revision updates RootHide compatibility checks and signing.
-CLI startup passes bootstrap paths to payloads that use the physical filesystem;
-RootHide virtual-filesystem utilities retain their official import rewriting.
+Patch application tolerates uniquely anchored surrounding-context changes while
+still rejecting changes to the replaced lines or retained context. Releases
+require build, symbol and process-behavior checks. RootHide
+utilities retain their official import rewriting and verified signing.
 RootHide device validation is pending; a successful build is not a claim that
 all interactive runtime paths have been tested.
