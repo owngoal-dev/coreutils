@@ -4,7 +4,7 @@
   These are file and process utilities: they are launched from a shell, read
   and write files all over the bootstrap and the user's home, stat and chmod
   them, and start other programs. Three entitlements make that work on a
-  device running custom firmware:
+  jailbroken device:
 
   platform-application
       Marks the binary as a platform binary. An ad-hoc signed executable

@@ -1,4 +1,4 @@
-# uutils coreutils — the Rust coreutils packaged for iOS on custom firmware.
+# uutils coreutils — the Rust coreutils packaged for jailbroken iOS.
 #
 # Every step is a script under scripts/ so the GitHub Actions workflow and a
 # local checkout run the same code. This makefile only wires them together and
@@ -59,7 +59,7 @@ endif
 all: debs
 
 help:
-	@echo "uutils coreutils $(PACKAGE_VERSION) — the Rust coreutils for iOS on custom firmware"
+	@echo "uutils coreutils $(PACKAGE_VERSION) — the Rust coreutils for jailbroken iOS"
 	@echo "upstream: $(UPSTREAM_REPO) @ $(UPSTREAM_REF)"
 	@echo "target:   $(ARCH)-apple-ios$(MIN_IOS), features $(CARGO_FEATURES)"
 	@echo
