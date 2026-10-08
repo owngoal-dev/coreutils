@@ -1,4 +1,4 @@
-[uutils coreutils](https://github.com/uutils/coreutils) — the GNU core utilities reimplemented in Rust — built for jailbroken iOS, **replacing** the GNU coreutils your bootstrap ships.
+[uutils coreutils](https://github.com/uutils/coreutils) — the GNU core utilities reimplemented in Rust — built for iOS on custom firmware, **replacing** the GNU coreutils your bootstrap ships.
 
 ## Which one do I download?
 

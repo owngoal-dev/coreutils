@@ -1,4 +1,4 @@
-# uutils coreutils for jailbroken iOS
+# uutils coreutils for iOS on custom firmware
 
 [uutils coreutils](https://github.com/uutils/coreutils) — the GNU core
 utilities reimplemented in Rust — cross-compiled for iOS 15+ and packaged for

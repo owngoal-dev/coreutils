@@ -1,8 +1,8 @@
 # uutils coreutils — Agent Notes
 
 [uutils coreutils](https://github.com/uutils/coreutils) is packaged for
-jailbroken iOS 15+, for both roothide and rootless bootstraps, **as a
-replacement for the GNU coreutils the bootstrap ships**.
+iOS 15+ on custom firmware, for both roothide and rootless bootstraps,
+**as a replacement for the GNU coreutils the bootstrap ships**.
 
 This is a packaging repository, not a fork. It fetches a pinned upstream
 commit, applies `patches/`, and cross-compiles one arm64 multi-call binary that

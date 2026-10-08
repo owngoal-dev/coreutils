@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Install one .deb onto a jailbroken device over SSH and smoke-test it.
+# Install one .deb over SSH onto a device running custom firmware and
+# smoke-test it.
 #
 # This package takes over the bootstrap's GNU coreutils in usr/bin. The
 # interesting part of the test is therefore not that the utilities run, it is
